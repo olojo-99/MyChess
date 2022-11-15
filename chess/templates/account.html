@@ -1,0 +1,63 @@
+{%  extends "base.html" %}
+
+{% block title %}Chess{%  endblock %}
+
+{% block class %}User Home{%  endblock %}
+
+{%  block content %}
+
+
+<h1>User Home</h1>
+
+<table class="basic-table">
+    <caption>Other Users</caption>
+    <thead>
+        <tr>
+            <th>User ID</th>
+            <th>Username</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for user in other_users %}
+            <tr>
+                <td class="cell-center">{{user.id}}</td>
+                <td class="cell-center">{{user.get_username}}</td>
+                <td class="cell-center"><a href="/start_game/{{user.id}}">Challenge</a></td>
+            </tr>
+        {% endfor %}
+        {% if not other_users %}
+        <tr>
+            <td colspan="100%" class="cell-center">You're on your own</td>
+        </tr>
+        {% endif %}
+    </tbody>
+</table>
+
+<table class="basic-table">
+    <caption>Games</caption>
+    <thead>
+        <tr>
+            <th>Game ID</th>
+            <th>White</th>
+            <th>Black</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for game in games %}
+            <tr>
+                <td class="cell-center"><a href="/game/{{game.id}}">{{game.id}}</a></td>
+                <td class="cell-center">{{game.white}}</td>
+                <td class="cell-center">{{game.black}}</td>
+            </tr>
+        {% endfor %}
+        {% if not games %}
+        <tr>
+            <td colspan="100%" class="cell-center">No games</td>
+        </tr>
+        {% endif %}
+    </tbody>
+</table>
+
+
+{%  endblock %}
+

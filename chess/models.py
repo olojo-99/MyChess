@@ -26,6 +26,7 @@ class Game(models.Model):
         'B': 'black',
     }
     turn = models.CharField(max_length=1, choices=TURNS.items(), default='W')
+    moves = models.IntegerField(default=0)
 
     def get_next_turn(self):
         return self.TURNS[self.turn]
@@ -69,6 +70,14 @@ class Game(models.Model):
         # perform the move
         board[to_square] = board[from_square]
         board[from_square] = 's'
+
+        # deal with promotions
+        if board[to_square] in 'np' and to_square >= 56: # white
+            board[to_square] = 'q'
+        elif board[to_square] in 'NP' and to_square <= 7: # black
+            board[to_square] = 'Q'
+
+        # re-assemble board
         self.board = "".join(board)
 
         if self.turn == 'W':
@@ -76,5 +85,6 @@ class Game(models.Model):
         else:
             self.turn = 'W'
 
+        self.moves += 1
         self.save()
         return True

@@ -55,6 +55,7 @@ class MessageSocket(WebsocketConsumer):
         async_to_sync(self.channel_layer.group_send) (group, {
             "type": "broadcast_move",
             "moving_player": self.scope['user'].id,
+            "move_num": game.moves,
             "from": j['from'],
             "to": j['to']
         })
@@ -63,6 +64,7 @@ class MessageSocket(WebsocketConsumer):
         self.send(text_data=json.dumps({
             "type": "ok",
             "moving_player": self.scope['user'].id,
+            "move_num": game.moves,
             "to": j['to'],
             "from": j['from'],
         }))

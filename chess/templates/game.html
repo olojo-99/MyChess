@@ -34,31 +34,29 @@ th.top {
 }
 </style>
 <script>
-let selectedObj, offsetX, offsetY, layerX, layerY;
-
 'use strict';
 
-let piece_index = {
-c: 'castle',
-n: 'knight',
-b: 'bishop',
-q: 'queen',
-k: 'king',
-p: 'pawn',
-};
+function clamp(value, min, max) {
+    if(value > max) return max;
+    else if(value < min) return min;
+    else return value;
+}
 
 class Piece {
-    static list = []
-    static map = {}
+    static counter = 0;
 
-    static get_piece(pos) {
-        return Piece.list[Piece.map[pos]];
-    }
+    static piece_index = {
+        c: 'castle',
+        n: 'knight',
+        b: 'bishop',
+        q: 'queen',
+        k: 'king',
+        p: 'pawn',
+    };
 
-    constructor(type, position) {
-        this.position = position;
-        this.type = piece_index[type.toLowerCase()];
-        this.status = 'active';
+    constructor(type, pos) {
+        this.type = Piece.piece_index[type.toLowerCase()];
+        this.active = true;
         this.hasMoved = false;
 
         if(type >= 'A' && type <= 'Z')
@@ -68,88 +66,90 @@ class Piece {
 
         this.img = document.createElement('img');
         this.img.src = '/img/' + this.color + '_' + this.type + ".svg";
-        this.img.id = 'chessPieceNo' + Piece.list.length;
-        this.img.className = 'piece';
+        this.img.id = 'chessPieceNo' + Piece.counter++;
+        this.img.className = this.color + '_piece';
         this.img.style.width = '45px';
         this.img.style.height = '45px';
         this.img.draggable = false;
         this.img.style.userSelect = 'none';
 
-        Piece.map[this.position] = Piece.list.length;
-        Piece.list.push(this)
+        document.getElementById(pos).appendChild(this.img);
     }
 
     capture() {
-        this.status = 'inactive';
+        this.active = false;
         this.img.remove();
     }
 
-    move(newpos) {
-        let dest_piece = Piece.get_piece(newpos);
-
-        if(dest_piece && this.color == dest_piece.color) {
+    // check move is possible
+    canMove(xDist, yDist, captured_piece) {
+        if(captured_piece && this.color == captured_piece.color) {
             return false;
         }
 
-        let xDist = newpos.charCodeAt(0) - this.position.charCodeAt(0);
-        let yDist = newpos.charCodeAt(1) - this.position.charCodeAt(1);
-
-        // check move is possible
-        let canMove = false;
         switch(this.type) {
         case 'pawn':
             let pawn_vDist = this.color == 'black' ? -yDist : yDist;
 
-            if(dest_piece) {
-                canMove = pawn_vDist == 1 && Math.abs(xDist) == 1;
+            if(captured_piece) {
+                return pawn_vDist == 1 && Math.abs(xDist) == 1;
             } else if(xDist == 0) {
-                canMove = pawn_vDist == 1 || (!this.hasMoved && pawn_vDist == 2);
+                return pawn_vDist == 1 || (!this.hasMoved && pawn_vDist == 2);
             }
             break;
         case 'bishop':
-            canMove = Math.abs(yDist) == Math.abs(xDist);
-            break;
+            return Math.abs(yDist) == Math.abs(xDist);
         case 'castle':
-            canMove = yDist == 0 || xDist == 0;
-            break;
+            return yDist == 0 || xDist == 0;
         case 'king':
-            canMove = Math.abs(yDist) < 2 && Math.abs(xDist) < 2;
-            break;
+            return Math.abs(yDist) < 2 && Math.abs(xDist) < 2;
         case 'queen':
-            canMove = (yDist == 0 || xDist == 0) || Math.abs(yDist) == Math.abs(xDist);
-            break;
+            return (yDist == 0 || xDist == 0) || Math.abs(yDist) == Math.abs(xDist);
         case 'knight':
-            canMove = (Math.abs(yDist) == 1 && Math.abs(xDist) == 2) || (Math.abs(yDist) == 2 && Math.abs(xDist) == 1);
-            break;
+            return (Math.abs(yDist) == 1 && Math.abs(xDist) == 2) || (Math.abs(yDist) == 2 && Math.abs(xDist) == 1);
         }
-        if(!canMove)
-            return false;
+        return false;
+    }
 
-        // check path is clear
-        if((Math.abs(yDist) > 1 || Math.abs(xDist) > 1) && this.type != 'knight') {
-            let x = this.position.charCodeAt(0) - 97; // "a".charCodeAt(0);
-            let y = this.position.charCodeAt(1) - 49; // "1".charCodeAt(0);
-
-            let dest_x = newpos.charCodeAt(0) - 97; // "a".charCodeAt(0);
-            let dest_y = newpos.charCodeAt(1) - 49; // "1".charCodeAt(0);
-
-            let hIncr = xDist == 0 ? 0 : (xDist > 0 ? 1 : -1);
-            let vIncr = yDist == 0 ? 0 : (yDist > 0 ? 1 : -1);
-
-            while(1) {
-                x += hIncr;
-                y += vIncr;
-
-                if(x == dest_x && y == dest_y)
-                    break;
-
-                // if there's a piece of any colour in the way quit
-                if(Piece.get_piece(letters[x] + (y+1)))
-                    return false;
-            }
+    move(newpos, captured_piece, animate) {
+        // capture piece
+        if(captured_piece) {
+            captured_piece.capture();
         }
 
-        // promotions
+        // animate movement
+        if(animate) {
+            // record the position before the move
+            let before = this.img.getBoundingClientRect();
+
+            // actually move the element within the DOM
+            document.getElementById(newpos).appendChild(this.img);
+
+            // record the new position
+            let after = this.img.getBoundingClientRect();
+
+            // animate the mvoe
+            this.img.style.position = 'relative';
+            this.img.style.left = '0px';
+            this.img.style.top = '0px';
+            this.img.animate([
+                {
+                    left: (before.x - after.x) + 'px',
+                    top: (before.y - after.y) + 'px',
+                },
+                {
+                  left: '0px',
+                  top: '0px',
+                }
+            ], {
+                // timing options
+                duration: 1000
+            });
+        } else {
+            document.getElementById(newpos).appendChild(this.img);
+        }
+
+        // deal with promotions
         if(this.type == 'pawn' || this.type == 'knight') {
             if((newpos[1] == '8' && this.color == 'white') || (newpos[1] == '1' && this.color == 'black')) {
                 this.type = 'queen';
@@ -157,113 +157,327 @@ class Piece {
             }
         }
 
-        if(dest_piece) {
-            dest_piece.capture();
+        this.hasMoved = true;
+    }
+}
+
+class GameState {
+    list = [];
+    map = {};
+
+    constructor(turn, move_num, board) {
+        this.turn = turn;
+        this.move_num = move_num;
+
+        let square_no = 0;
+        let piece_no = 0
+        for(let j = 0; j < 8; j++) {
+            for(let k = 0; k < 8; k++) {
+                let position = GameState.getGrid(k, j);
+
+                if(board[square_no] != 's') {
+                    this.map[position] = this.list.length;
+                    this.list.push(new Piece(board[square_no], position));
+                    piece_no++;
+                }
+
+                square_no++;
+            }
         }
 
-        document.getElementById(newpos).appendChild(this.img);
+        this.printStatus();
+    }
 
-        Piece.map[newpos] = Piece.map[this.position];
-        delete Piece.map[this.position];
+    clearBoard() {
+        for(let i = 0; i < this.list.length; i++) {
+            this.list.img.remove();
+        }
+    }
 
-        this.position = newpos;
-        this.hasMoved = true;
+    canTakeTurn() {
+        return user_color == this.turn;
+    }
+
+    // convert [0, 0] to a1
+    static getGrid(x, y) {
+        return String.fromCharCode(97 + x ,49 + y)
+    }
+
+    // convert a1 to [0, 0]
+    static getCoordsFromGrid(ref) {
+        return [ref.charCodeAt(0) - 97, ref.charCodeAt(1) - 49];
+    }
+
+    move(from, to, animate = false) {
+        let moving_piece = this.get_piece(from);
+        let captured_piece = this.get_piece(to);
+
+        let xDist = to.charCodeAt(0) - from.charCodeAt(0);
+        let yDist = to.charCodeAt(1) - from.charCodeAt(1);
+
+        // check the piece is able to make this kind of move
+        if(!moving_piece || !moving_piece.canMove(xDist, yDist, captured_piece)) {
+            return false;
+        }
+
+        // check path is clear
+        if((yDist == 0 || xDist == 0 || Math.abs(yDist) == Math.abs(xDist)) && (Math.abs(yDist) > 1 || Math.abs(xDist) > 1)) {
+            let [x, y] = GameState.getCoordsFromGrid(from);
+            let [dest_x, dest_y] = GameState.getCoordsFromGrid(to);
+
+            let hIncr = clamp(xDist, -1, 1);
+            let vIncr = clamp(yDist, -1, 1);
+
+            while(1) {
+                // we don'y want to check the first square
+                x += hIncr;
+                y += vIncr;
+
+                // ... or the last
+                if(x == dest_x && y == dest_y)
+                    break;
+
+                // if there's a piece of any colour in the way quit
+                if(GameState.getGrid(x, y) in this.map) {
+                    return false;
+                }
+            }
+        }
+
+        // move piece
+        // (remove captured piece from board, checks for promotions and move actual image)
+        moving_piece.move(to, captured_piece, animate);
+
+        //change index
+        this.map[to] = this.map[from];
+        delete this.map[from];
+
+        this.turn = this.turn == 'black' ? 'white' : 'black';
+        this.move_num++;
+        this.printStatus();
 
         return true;
     }
-}
 
-let msgSocket = null;
-let can_play = true;
-let user_color = '{{user_color}}';
-let turn = '{{game.get_next_turn}}';
-let startUpStatus = "{{game.board}}";
-let user_id = {{user.id}}
-let game_id = {{game.id}};
-let from_square;
-
-function connect() {
-    if(msgSocket) return;
-
-    msgSocket = new WebSocket("ws://" + window.location.host + "/ws/" + game_id);
-
-    msgSocket.onopen = function(e) {
-        console.log("Successfully connected to the WebSocket.");
+    get_piece(pos) {
+        return this.list[this.map[pos]];
     }
 
-    msgSocket.onclose = function(e) {
-        console.log("WebSocket connection closed unexpectedly.");
-        /*Trying to reconnect in 2s...");
-        setTimeout(function() {
-            console.log("Reconnecting...");
-            connect();
-        }, 2000);*/
-        msgSocket = null;
-    };
+    printStatus() {
+        let statusEle = document.getElementById("status");
+        if(!statusEle) return;
 
-    msgSocket.onmessage = function(e) {
-        let j;
-        try {
-            j = JSON.parse(e.data);
-        } catch(msg) {
-            console.log("ERROR: " + e.data);
+        statusEle.innerHTML = "You are playing " + user_color + ". ";
+
+        if(user_color == this.turn) {
+            statusEle.innerHTML += " It is your turn.";
+        } else {
+            statusEle.innerHTML += " You are waiting on " + this.turn + " to play.";
+        }
+    }
+
+    completeMove(incoming_move, from_square, to_square) {
+        if(incoming_move == this.move_num) {
+            console.log("Move completed: " + from_square + " -> " + to_square);
+        } else {
+            // a weird error has occurred
+            location.reload();
+        }
+    }
+
+    makeOtherPlayerMove(incoming_move, from_square, to_square) {
+        // if we've missed a move, reload the page to reset the board
+        if(incoming_move > this.move_num + 1) {
+            location.reload();
             return;
         }
 
-        switch(j['type']) {
-        case "ok":
-            if(j['moving_player'] == user_id) {
-                completeMove();
-                console.log("Move completed: " + j['from'] + " -> " + j['to']);
-            } else {
-                console.log("You should never see this");
-            }
-            break;
-        case "broadcast_move":
-            if(j['moving_player'] != user_id) {
-                makeOtherPlayerMove(j['from'], j['to']);
-            } else {
-                console.log("2 Just receiving an echo");
-            }
-            break;
-        default:
-            console.log("OTHER: " + e);
+        // only perform a move if it's the next logical move
+        if(incoming_move != this.move_num + 1) return;
+
+        // make move
+        if(!this.move(from_square, to_square, true)) {
+            console.log("Bad move, abort...");
+            return;
+        }
+    }
+
+}
+
+class MessageSocket {
+    socket = null;
+    interval = 2000;
+
+    constructor() {
+        this.connect();
+    }
+
+    connect() {
+        if(this.socket) return;
+
+        this.socket = new WebSocket("ws://" + window.location.host + "/ws/" + game_id);
+
+        this.socket.onopen = function(e) {
+            this.interval = 2000; // reset
+            console.log("Successfully connected to the WebSocket.");
         }
 
-    };
+        this.socket.onclose = function(e) {
+            console.log("WebSocket connection closed unexpectedly. " +
+                "Trying to reconnect in " + (this.interval/1000) + "s...");
+            this.socket = null;
+            setTimeout(function () {
+                console.log("Reconnecting...");
+                this.connect();
+            }, this.interval);
 
-    msgSocket.onerror = function(err) {
-        console.log("WebSocket encountered an error: " + err.message);
-        console.log("Closing the socket.");
-        msgSocket.close();
-        msgSocket = null;
+            // double interval after each failed attempt
+            this.interval *= 2;
+        };
+
+        this.socket.onmessage = function(e) {
+            let j;
+            try {
+                j = JSON.parse(e.data);
+            } catch(msg) {
+                console.log("ERROR: " + e.data);
+                return;
+            }
+
+            switch(j['type']) {
+            case "ok":
+                game_state.completeMove(j['move_num'], j['from'], j['to']);
+                break;
+            case "broadcast_move":
+                game_state.makeOtherPlayerMove(j['move_num'], j['from'], j['to']);
+                break;
+            default:
+                console.log("OTHER: " + e);
+            }
+        };
+
+        this.socket.onerror = function(err) {
+            console.log("WebSocket encountered an error: " + err.message);
+            console.log("Closing the socket.");
+            this.socket.close();
+            this.socket = null;
+        }
+    }
+
+    send(msg) {
+        if(this.socket) {
+            this.socket.send(JSON.stringify(msg));
+        }
     }
 }
 
 
-connect();
+class DragAndDrop {
+    static selected_piece = null;
+    static offsetX = null;
+    static offsetY = null;
+    static layerX = null;
+    static layerY = null;
+    static from_square = null;
 
-let letters = "abcdefgh";
-let i = 0;
-for(let j = 1; j < 9; j++) {
-    for(let k = 0; k < 8; k++) {
-        let pos = letters[k] + j;
+    static setup() {
+        window.addEventListener("mousedown", DragAndDrop.engage_piece, false);
+        window.addEventListener("mousemove", DragAndDrop.move_piece, false);
+        window.addEventListener("mouseup", DragAndDrop.release_piece, false);
+    }
 
-        if(startUpStatus[i] != 's') {
-            new Piece(startUpStatus[i], pos);
+    static engage_piece(e) {
+        let obj;
+
+        if(!game_state.canTakeTurn()) return;
+
+        if(e.target.tagName == 'IMG') {
+            obj = e.target;
+        } else if(e.target.getElementsByTagName('IMG').length == 1) {
+            obj = e.target.getElementsByTagName('IMG')[0];
+        } else {
+            return;
         }
 
-        i++;
+        // check the table is a grid
+        if(!obj.parentNode.id.match(/^[a-h][1-8]$/)) return;
+
+        // can only play own pieces
+        if(obj.className != user_color + '_piece') return;
+
+        // engage
+        DragAndDrop.selected_piece = obj;
+        DragAndDrop.offsetX = e.clientX - obj.x;
+        DragAndDrop.offsetY = e.clientY - obj.y;
+        DragAndDrop.from_square = obj.parentNode.id;
+        obj.style.position = "absolute";
+        obj.style.zIndex = 100;
+
+        DragAndDrop.move_piece(e);
+    }
+
+    static move_piece(e) {
+        if(!DragAndDrop.selected_piece) return;
+
+        DragAndDrop.selected_piece.style.top = (window.pageYOffset + e.clientY - DragAndDrop.offsetY) + "px";
+        DragAndDrop.selected_piece.style.left = (window.pageXOffset + e.clientX - DragAndDrop.offsetX) + "px";
+    }
+
+    static getSquareAt(x, y) {
+        let eles = document.elementsFromPoint(x, y);
+        for(let i = 0; i < eles.length; i++) {
+            if(eles[i].tagName == 'TD' && eles[i].id && eles[i].id.match(/^[a-h][1-8]$/)) {
+                return eles[i].id;
+            }
+        }
+        return null;
+    }
+
+    static release_piece(e) {
+        if(!DragAndDrop.selected_piece) return;
+
+        // get the coords of the chess piece
+        let piece_pos = DragAndDrop.selected_piece.getBoundingClientRect();
+
+        // move it back (now that we have the co-ords)
+        DragAndDrop.selected_piece.style.zIndex = 10;
+        DragAndDrop.selected_piece.style.position = "static";
+        DragAndDrop.selected_piece.style.top = "0px";
+        DragAndDrop.selected_piece.style.left = "0px";
+        DragAndDrop.selected_piece = null;
+
+        // where are we going
+        let to_square = DragAndDrop.getSquareAt(piece_pos.x, piece_pos.y);
+        let bottom_right = DragAndDrop.getSquareAt(piece_pos.x + piece_pos.width, piece_pos.y + piece_pos.height);
+
+        // check we're over a cell and that he full piece is over the same cell
+        if(!to_square || !bottom_right || to_square != bottom_right) return;
+
+        // not going anywhere
+        if(to_square == DragAndDrop.from_square) return;
+
+        // validate move
+        if(!game_state.move(DragAndDrop.from_square, to_square)) {
+            console.log("invalid move");
+            return;
+        }
+
+        console.log("Moving " + DragAndDrop.from_square + " to " + to_square)
+
+        message_socket.send({
+            "type": "make_move",
+            "game": game_id,
+            "from": DragAndDrop.from_square,
+            "to": to_square,
+        });
     }
 }
 
-function setup()
+function createBoard()
 {
-    updateStatus();
-    
-    let letters = "abcdefgh";
-    let background = "light";
     let table = document.getElementById('board');
+    let background = "light";
+    let letters = "abcdefgh";
 
     let header = document.createElement('tr');
     let th = document.createElement('th');
@@ -288,13 +502,7 @@ function setup()
             let td = document.createElement('td');
             td.id = letters[h] + i;
             td.className = 'box ' + background;
-
             td.style.textAlign = 'center';
-
-            let p = Piece.get_piece(td.id);
-            if(p) {
-                td.appendChild(p.img);
-            }
 
             tr.appendChild(td);
             background = background == "light" ? "dark" : "light";
@@ -304,144 +512,16 @@ function setup()
     }
 }
 
-// Drag an element
-function move_piece(e) {
-    if(selectedObj) {
-        selectedObj.style.top = (window.pageYOffset + e.clientY - offsetY) + "px";
-        selectedObj.style.left = (window.pageXOffset + e.clientX - offsetX) + "px";
-    }
-}
+let game_id = {{game.id}};
+let user_color = '{{user_color}}';
+let game_state = null;
+let message_socket = new MessageSocket();
 
-function engage_piece(e) {
-    let obj;
-
-    if(user_color != turn || !can_play) return;
-
-    if(e.target.tagName == 'IMG') {
-        obj = e.target;
-    } else if(e.target.getElementsByTagName('IMG').length == 1) {
-        obj = e.target.getElementsByTagName('IMG')[0];
-    } else {
-        return;
-    }
-
-    selectedObj = obj;
-    from_square = obj.parentNode.id;
-
-    let moving_piece = Piece.get_piece(from_square);
-    if(!moving_piece || turn != moving_piece.color)
-        return;
-
-    offsetX = e.clientX - selectedObj.x;
-    offsetY = e.clientY - selectedObj.y;
-
-    selectedObj.style.position = "absolute";
-    selectedObj.style.zIndex = 100;
-
-    move_piece(e);
-}
-
-function release_piece(e) {
-    if(!selectedObj || !from_square.match(/^[a-h][1-8]$/)) return;
-
-    // get the coords of the chess piece and the upper left square
-    let a8_cell = document.getElementById("a8").getBoundingClientRect();
-    let piece_pos = selectedObj.getBoundingClientRect();
-
-    // move it back (now that we have the co-ords)
-    selectedObj.style.zIndex = 10;
-    selectedObj.style.position = "static";
-    selectedObj.style.top = "0px";
-    selectedObj.style.left = "0px";
-    selectedObj = null;
-
-    // top left of piece
-    let x = Math.floor((piece_pos.x - a8_cell.x) / a8_cell.width);
-    let y = Math.floor((piece_pos.y - a8_cell.y) / a8_cell.height);
-
-    // bottom right of piece
-    let xRight = Math.floor((piece_pos.width + piece_pos.x - a8_cell.x) / a8_cell.width);
-    let yBottom = Math.floor((piece_pos.height + piece_pos.y - a8_cell.y) / a8_cell.height);
-
-    // must all be real numbers
-    if(isNaN(x) || isNaN(y) || isNaN(xRight) || isNaN(yBottom)) return;
-
-    // if it was moved outside the board, forget it
-    if(x < 0 || x > 7) return;
-    if(y < 0 || y > 7) return;
-
-    // piece should be fully within a cell
-    if(x != xRight || y != yBottom) return;
-
-    let to_square = "abcdefgh"[x] + (8 - y);
-
-    // not going anywhere
-    if(to_square == from_square) return;
-
-    // validate    move
-    console.log("Attempting " + from_square + " to " + to_square)
-    let p = Piece.get_piece(from_square);
-    if(!p || !p.move(to_square)) return;
-
-    // stop a second move
-    can_play = false;
-
-    msgSocket.send(JSON.stringify({
-            "type": "make_move",
-            "game": game_id,
-            "from": from_square,
-            "to": to_square,
-        })
-    );
-}
-
-function completeMove() {
-    turn = turn == 'black' ? 'white' : 'black';
-    can_play = true;
-    updateStatus();
-}
-
-function makeOtherPlayerMove(from_square, to_square) {
-    if(user_color == turn) {
-        console.log("1 Bad move, abort...");
-        return;
-    }
-
-    let moving_piece = Piece.get_piece(from_square);
-    if(!moving_piece || turn != moving_piece.color) {
-        console.log("2 Bad move, abort...");
-        return;
-    }
-
-    // validate    move
-    if(!moving_piece.move(to_square)) {
-        console.log("3 Bad move, abort...");
-        return;
-    }
-
-    // can play again
-    turn = turn == 'black' ? 'white' : 'black';
-
-    updateStatus();
-}
-
-function updateStatus() {
-    let statusEle = document.getElementById("status");
-    
-    statusEle.innerHTML = "You are playing " + user_color + ". ";
-
-    if(user_color == turn) {
-        statusEle.innerHTML += " It is your turn.";
-    } else {
-        statusEle.innerHTML += " You are waiting on " + turn + " to play.";
-    }
-}
-
-window.addEventListener("mousedown", engage_piece, false);
-window.addEventListener("mousemove", move_piece, false);
-window.addEventListener("mouseup", release_piece, false);
-
-window.addEventListener("DOMContentLoaded", setup, false);
+window.addEventListener("DOMContentLoaded", function() {
+        createBoard();
+        game_state = new GameState('{{game.get_next_turn}}', {{game.moves}}, "{{game.board}}");
+        DragAndDrop.setup();
+}, false);
 
 </script>
 {%  endblock %}

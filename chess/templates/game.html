@@ -407,8 +407,10 @@ class DragAndDrop {
 
         // engage
         DragAndDrop.selected_piece = obj;
-        DragAndDrop.offsetX = e.clientX - obj.x;
-        DragAndDrop.offsetY = e.clientY - obj.y;
+        let box = obj.getBoundingClientRect();
+
+        DragAndDrop.offsetX = e.clientX - box.x;
+        DragAndDrop.offsetY = e.clientY - box.y;
         DragAndDrop.from_square = obj.parentNode.id;
         obj.style.position = "absolute";
         obj.style.zIndex = 100;
@@ -535,3 +537,4 @@ window.addEventListener("DOMContentLoaded", function() {
 <div id="status"></div>
 
 {%  endblock %}
+

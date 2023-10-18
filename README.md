@@ -26,7 +26,7 @@
     redis-server
 
 ## Playing Games
-    Go to localhost on two separated clients (i.e. open an incognito browser)
+    Go to localhost on two separate clients (i.e. open an incognito browser)
     Register or Log in
     Click on account name hyperlink for game menu
-    Challenge user or accept challenge
+    Challenge user or accept challenge# MyChess
